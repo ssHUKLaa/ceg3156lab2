@@ -158,7 +158,7 @@ BEGIN
 
 	mux_2to1_4bit_inst: entity work.mux_2to1_4bit
 	port map (
-	  sel   => test,
+	  sel   => instruction_Signal, --test
 	  d_in1 => instruction_Signal(20 downto 16),
 	  d_in2 => instruction_Signal(15 downto 11),
 	  d_out => trans_writereg
