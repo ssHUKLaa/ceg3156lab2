@@ -42,7 +42,7 @@ architecture basic of ALU_32bit IS
     SIGNAL transZero : std_logic;
 begin
 
-    adder: entity work.CLA_32bit
+    cla_32bit_inst: entity work.CLA_32bit
     port map (
       a           => A,
       b           => B,

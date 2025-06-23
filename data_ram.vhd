@@ -1,13 +1,12 @@
 LIBRARY ieee;
-USE ieee.std_logic_1164.all;
+USE ieee.std_logic_1164.ALL;
 
-LIBRARY altera_mf;
-USE altera_mf.altera_mf_components.all;
+LIBRARY lpm;
 
 ENTITY data_ram IS
     PORT (
         aclr    : IN STD_LOGIC := '0';
-        address : IN STD_LOGIC_VECTOR(7 DOWNTO 0); -- 256 x 32-bit words
+        address : IN STD_LOGIC_VECTOR(7 DOWNTO 0);
         clock   : IN STD_LOGIC := '1';
         data    : IN STD_LOGIC_VECTOR(31 DOWNTO 0);
         rden    : IN STD_LOGIC := '1';
@@ -16,36 +15,50 @@ ENTITY data_ram IS
     );
 END data_ram;
 
-ARCHITECTURE SYN OF data_ram IS
-    SIGNAL sub_wire0 : STD_LOGIC_VECTOR(31 DOWNTO 0);
-BEGIN
-    q <= sub_wire0;
+ARCHITECTURE synth OF data_ram IS
 
-    altsyncram_component : altsyncram
+    COMPONENT lpm_ram_dq
+    GENERIC (
+        lpm_width           : NATURAL;
+        lpm_widthad         : NATURAL;
+        lpm_numwords        : NATURAL;
+        lpm_indata          : STRING;
+        lpm_address_control : STRING;
+        lpm_outdata         : STRING;
+        lpm_file            : STRING
+    );
+    PORT (
+        address : IN STD_LOGIC_VECTOR(7 DOWNTO 0);
+        data    : IN STD_LOGIC_VECTOR(31 DOWNTO 0);
+        inclock : IN STD_LOGIC;
+        we      : IN STD_LOGIC;
+        q       : OUT STD_LOGIC_VECTOR(31 DOWNTO 0)
+    );
+    END COMPONENT;
+
+
+    SIGNAL ram_q : STD_LOGIC_VECTOR(31 DOWNTO 0);
+BEGIN
+
+    ram_inst : lpm_ram_dq
     GENERIC MAP (
-        clock_enable_input_a       => "BYPASS",
-        clock_enable_output_a      => "BYPASS",
-        init_file                  => "data_mem_32.mif",
-        intended_device_family     => "Cyclone IV E",
-        lpm_hint                   => "ENABLE_RUNTIME_MOD=NO",
-        lpm_type                   => "altsyncram",
-        numwords_a                 => 256,
-        operation_mode             => "SINGLE_PORT",
-        outdata_aclr_a             => "CLEAR0",
-        outdata_reg_a              => "CLOCK0",
-        power_up_uninitialized     => "FALSE",
-        read_during_write_mode_port_a => "NEW_DATA_NO_NBE_READ",
-        widthad_a                  => 8,
-        width_a                    => 32,
-        width_byteena_a            => 1
+        lpm_width           => 32,
+        lpm_widthad         => 8,
+        lpm_numwords        => 256,
+        lpm_indata          => "REGISTERED",       -- sync write input
+        lpm_address_control => "UNREGISTERED",     -- async address input
+        lpm_outdata         => "UNREGISTERED",     -- async data output
+        lpm_file            => "data_mem_32.mif"
     )
     PORT MAP (
-        aclr0     => aclr,
-        address_a => address,
-        clock0    => clock,
-        data_a    => data,
-        rden_a    => rden,
-        wren_a    => wren,
-        q_a       => sub_wire0
+        address => address,
+        data    => data,
+        inclock => clock,
+        we      => wren,
+        q       => ram_q
     );
-END SYN;
+
+    -- Gate output with rden: output zero if rden = '0'
+    q <= ram_q WHEN rden = '1' ELSE (OTHERS => '0');
+
+END synth;

@@ -6,7 +6,7 @@ ENTITY singleCycleProc IS
 		ValueSelect : IN STD_LOGIC_VECTOR(2 downto 0);
 		GClock : IN STD_LOGIC;
 		GReset : IN STD_LOGIC;
-		MuxOut : OUT STD_LOGIC_VECTOR(7 downto 0);
+		MuxOut : OUT STD_LOGIC_VECTOR(31 downto 0);
 		InstructionOut : OUT STD_LOGIC_VECTOR(31 downto 0);
 		BranchOut : OUT STD_LOGIC;
 		ZeroOut : OUT STD_LOGIC;
@@ -29,14 +29,11 @@ ARCHITECTURE basic of singleCycleProc IS
    end component;
 
    component instruction_rom IS
-		PORT
-		(
-			aclr		: IN STD_LOGIC  := '0';
-			address		: IN STD_LOGIC_VECTOR (7 DOWNTO 0);
-			clock		: IN STD_LOGIC  := '1';
-			q		: OUT STD_LOGIC_VECTOR (31 DOWNTO 0)
-		);
-	END component;
+	   PORT (
+		   address : IN STD_LOGIC_VECTOR (7 DOWNTO 0);
+		   q       : OUT STD_LOGIC_VECTOR (31 DOWNTO 0)
+	   );
+   END component;
 
 	component CLA_8bit IS
 		PORT (
@@ -88,6 +85,22 @@ ARCHITECTURE basic of singleCycleProc IS
 		);
 	END component;
 
+	component control_unit is
+		port(
+			opcode		: in std_logic_vector(5 downto 0);
+			RegDst		: out std_logic;
+			ALUSrc		: out std_logic;
+			MemtoReg		: out std_logic;
+			RegWrite		: out std_logic;
+			MemRead		: out std_logic;
+			MemWrite		: out std_logic;
+			Branch		: out std_logic;
+			BNE : out std_logic;
+			Jump : out std_logic;
+			ALUOp			: out std_logic_vector(1 downto 0)
+		);
+	end component;
+
 	component data_ram IS
 		PORT (
 			aclr    : IN STD_LOGIC := '0';
@@ -119,10 +132,45 @@ ARCHITECTURE basic of singleCycleProc IS
 			overflowOut : OUT std_logic
 		);
 	END component;
+
+	component mux_8to1_8bit IS
+		PORT(
+			sel   : IN  STD_LOGIC_VECTOR(2 DOWNTO 0); -- 3-bit selector
+			d_in0 : IN  STD_LOGIC_VECTOR(7 DOWNTO 0);
+			d_in1 : IN  STD_LOGIC_VECTOR(7 DOWNTO 0);
+			d_in2 : IN  STD_LOGIC_VECTOR(7 DOWNTO 0);
+			d_in3 : IN  STD_LOGIC_VECTOR(7 DOWNTO 0);
+			d_in4 : IN  STD_LOGIC_VECTOR(7 DOWNTO 0);
+			d_in5 : IN  STD_LOGIC_VECTOR(7 DOWNTO 0);
+			d_in6 : IN  STD_LOGIC_VECTOR(7 DOWNTO 0);
+			d_in7 : IN  STD_LOGIC_VECTOR(7 DOWNTO 0);
+			d_out : OUT STD_LOGIC_VECTOR(7 DOWNTO 0)
+		);
+	END component;
+
+	component mux_2to1_5bit IS
+		PORT(
+			sel     : IN  STD_LOGIC;                              -- Select input
+			d_in1   : IN  STD_LOGIC_VECTOR(4 downto 0);           -- 5-bit Data input 1
+			d_in2   : IN  STD_LOGIC_VECTOR(4 downto 0);           -- 5-bit Data input 2
+			d_out   : OUT STD_LOGIC_VECTOR(4 downto 0)            -- 5-bit Data output
+		);
+	END component;
+
+	component ALU_Control is
+		port (
+			ALUOP : IN std_logic_vector(1 downto 0);
+			funct : IN std_logic_vector(5 downto 0);
+			Opr : OUT std_logic_vector(2 downto 0)
+		);
+	end component;
+
 	
-	SIGNAL trans_writereg : std_logic_vector(3 downto 0);
-	SIGNAL mux1BranchSum, branchSum, PC_SIG, newPCval, incPC, jumpaddr, shinstadr, transMuxOut, transMemRead, ALUResult, instruction_Signal, regData1, regData2, sngextendaddr, ALUBIn : std_logic_vector(31 downto 0);
-	SIGNAL ZeroRes : std_logic;
+	SIGNAL ALUOp : std_logic_vector(1 downto 0);
+	SIGNAL Opr : std_logic_vector(2 downto 0);
+	SIGNAL trans_writereg : std_logic_vector(4 downto 0);
+	SIGNAL mux1BranchSum, branchSum, PC_SIG, newPCval, incPC, jumpaddr, shinstadr, transMuxOut, transMemRead, ALUResult, instruction_Signal, regData1, regData2, sngextendaddr, ALUBIn, otherValues : std_logic_vector(31 downto 0);
+	SIGNAL tempSelbranch, ZeroRes, RegDst, ALUSrc, MemtoReg, RegWrite, MemRead, MemWrite, Branch, BNE, Jump : std_logic;
 BEGIN
 
 	inc_pc: entity work.CLA_32bit
@@ -150,15 +198,31 @@ BEGIN
 
 	instruction_rom_inst: entity work.instruction_rom
 	port map (
-	  aclr    => '0',
-	  address => PC_SIG(7 downto 0),
-	  clock   => GClock,
+
+	  address => PC_SIG(9 downto 2),
 	  q       => instruction_Signal
 	);
 
-	mux_2to1_4bit_inst: entity work.mux_2to1_4bit
+	control_unit_inst: entity work.control_unit
 	port map (
-	  sel   => instruction_Signal, --test
+	  opcode   => instruction_Signal(31 downto 26),
+	  RegDst   => RegDst,
+	  ALUSrc   => ALUSrc,
+	  MemtoReg => MemtoReg,
+	  RegWrite => RegWrite,
+	  MemRead  => MemRead,
+	  MemWrite => MemWrite,
+	  Branch   => Branch,
+	  BNE      => BNE,
+	  Jump     => Jump,
+	  ALUOp    => ALUOp
+	);
+
+	
+
+	mux_2to1_5bit_inst: entity work.mux_2to1_5bit
+	port map (
+	  sel   => RegDst, --test
 	  d_in1 => instruction_Signal(20 downto 16),
 	  d_in2 => instruction_Signal(15 downto 11),
 	  d_out => trans_writereg
@@ -168,7 +232,7 @@ BEGIN
 	port map (
 	  clk        => GClock,
 	  resetBar   => GReset,
-	  reg_write  => test,
+	  reg_write  => RegWrite,
 	  read_reg1  => instruction_Signal(25 downto 21),
 	  read_reg2  => instruction_Signal(20 downto 16),
 	  write_reg  => trans_writereg,
@@ -181,17 +245,24 @@ BEGIN
 
 	mux_2to1_32bit_inst: mux_2to1_32bit
 	port map (
-	  sel   => test,
+	  sel   => ALUSrc,
 	  d_in1 => regData2,
 	  d_in2 => sngextendaddr,
 	  d_out => ALUBIn
+	);
+
+	alu_control_inst: entity work.ALU_Control
+	port map (
+	  ALUOP => ALUOP,
+	  funct => instruction_Signal(5 downto 0),
+	  Opr   => Opr
 	);
 
 	alu_32bit_inst: entity work.ALU_32bit
 	port map (
 	  A       => regData1,
 	  B       => ALUBIn,
-	  sel     => test,
+	  sel     => Opr,
 	  ALU_res => ALUResult,
 	  Zero    => ZeroRes
 	);
@@ -199,17 +270,17 @@ BEGIN
 	data_ram_inst: entity work.data_ram
 	port map (
 	  aclr    => '0',
-	  address => ALUResult(7 downto 0),
+	  address => ALUResult(9 downto 2),
 	  clock   => GClock,
 	  data    => regData2,
-	  rden    => test,
-	  wren    => test,
+	  rden    => MemRead,
+	  wren    => MemWrite,
 	  q       => transMemRead
 	);
 
 	mux_2to1_32bit_inst_2: entity work.mux_2to1_32bit
 	port map (
-	  sel   => test,
+	  sel   => MemtoReg,
 	  d_in1 => ALUResult,
 	  d_in2 => transMemRead,
 	  d_out => transMuxOut
@@ -224,15 +295,16 @@ BEGIN
 	  b           => shinstadr,
 	  cin         => '0',
 	  Sum         => branchSum,
-	  CarryOut    => '0',
+	  CarryOut    => open,
 	  zeroOut     => open,
 	  OverFlowOut => open
 	);
 
+	tempSelbranch <= (ZeroRes and Branch) or (NOT ZeroRes and BNE);
 
 	mux_2to1_32bit_inst_3: entity work.mux_2to1_32bit
 	port map (
-	  sel   => test,
+	  sel   => tempSelbranch,
 	  d_in1 => incPC,
 	  d_in2 => branchSum,
 	  d_out => mux1BranchSum
@@ -243,13 +315,31 @@ BEGIN
 
 	mux_2to1_32bit_inst_4: entity work.mux_2to1_32bit
 	port map (
-	  sel   => test,
+	  sel   => Jump,
 	  d_in1 => mux1BranchSum,
 	  d_in2 => jumpaddr,
 	  d_out => newPCval
 	);
 
+	BranchOut <= tempSelbranch;
+	ZeroOut <= ZeroRes;
+	MemWriteOut <= MemWrite;
+	RegWriteOut <= RegWrite;
+	otherValues <= "0000000000000000000000000" & RegDst & Jump & MemRead & MemtoReg & ALUOp & ALUSrc;
 
-
+	mux_8to1_32bit_inst: entity work.mux_8to1_32bit
+	port map (
+	  sel   => ValueSelect,
+	  d_in0 => PC_SIG,
+	  d_in1 => ALUResult,
+	  d_in2 => regData1,
+	  d_in3 => regData2,
+	  d_in4 => transMuxOut,
+	  d_in5 => otherValues,
+	  d_in6 => otherValues,
+	  d_in7 => otherValues,
+	  d_out => MuxOut
+	);
+	InstructionOut <=instruction_Signal;
 	
 end basic;

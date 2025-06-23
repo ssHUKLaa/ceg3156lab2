@@ -1,0 +1,14 @@
+DEPTH = 256;             -- 256 memory locations
+WIDTH = 32;              -- 32 bits per memory word
+ADDRESS_RADIX = HEX;     -- Addresses written in hex
+DATA_RADIX = HEX;        -- Data written in hex
+
+CONTENT
+BEGIN
+    -- Initial values
+    00: 00000055;         -- Lower 8 bits set to 0x55
+    01: 000000AA;         -- Lower 8 bits set to 0xAA
+
+    -- Default for the rest of memory
+    [02..FF]: 00000000;
+END;

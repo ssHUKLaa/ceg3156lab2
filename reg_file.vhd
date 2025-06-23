@@ -39,8 +39,11 @@ architecture basic of reg_file IS
     signal n0, n1, n2, n3, n4 : std_logic;
     signal enables : std_logic_vector(31 downto 0);
     signal regs_flat : std_logic_vector(1023 downto 0);
-    type reg_matrix_type is array (0 to 31, 0 to 31) of std_logic;
-    signal reg_matrix : reg_matrix_type;
+    type reg_file_type is array (0 to 31) of std_logic_vector(31 downto 0);
+    signal reg_matrix : reg_file_type;
+
+
+
 
 begin
 
@@ -91,17 +94,16 @@ begin
                     i_d        => write_data(b),
                     i_enable   => enables(r),
                     i_clock    => clk,
-                    o_q        => reg_matrix(r, b),
+                    o_q        => reg_matrix(r)(b),  -- note parentheses for std_logic_vector indexing
                     o_qBar     => open
                 );
         end generate;
     end generate;
 
     flatten: for i in 0 to 31 generate
-        flatten_bit: for j in 0 to 31 generate
-            regs_flat(i*32 + j) <= reg_matrix(i, j);
-        end generate;
+        regs_flat((i+1)*32 - 1 downto i*32) <= reg_matrix(i);
     end generate;
+
 
     read_mux1: mux_32to1_32bit
         port map (
